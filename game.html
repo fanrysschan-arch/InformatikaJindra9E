@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Tangkap Objek 🎮</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@400;700;900&display=swap');
+
+  :root {
+    --sky: #1a1a2e;
+    --ground: #16213e;
+    --accent: #e94560;
+    --star: #f5a623;
+    --green: #0f9b58;
+    --blue: #4cc9f0;
+    --white: #f0f0f0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--sky);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Nunito', sans-serif;
+    overflow: hidden;
+  }
+
+  /* Stars background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.8) 0%, transparent 100%),
+      radial-gradient(1px 1px at 25% 40%, rgba(255,255,255,0.6) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 10%, rgba(255,255,255,0.9) 0%, transparent 100%),
+      radial-gradient(1px 1px at 75% 30%, rgba(255,255,255,0.7) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 60%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 35% 70%, rgba(255,255,255,0.8) 0%, transparent 100%),
+      radial-gradient(1px 1px at 60% 85%, rgba(255,255,255,0.6) 0%, transparent 100%),
+      radial-gradient(1px 1px at 15% 90%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 5%, rgba(255,255,255,0.9) 0%, transparent 100%),
+      radial-gradient(2px 2px at 45% 55%, rgba(245,166,35,0.6) 0%, transparent 100%),
+      radial-gradient(2px 2px at 70% 20%, rgba(76,201,240,0.5) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #wrapper {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  h1 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(12px, 2.5vw, 20px);
+    color: var(--star);
+    text-shadow: 0 0 20px rgba(245,166,35,0.7), 3px 3px 0 var(--accent);
+    letter-spacing: 2px;
+    text-align: center;
+  }
+
+  #hud {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .hud-box {
+    background: rgba(255,255,255,0.05);
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 8px 18px;
+    text-align: center;
+  }
+
+  .hud-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .hud-value {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(14px, 2vw, 20px);
+    color: var(--white);
+  }
+
+  #score-val { color: var(--star); }
+  #lives-val { color: var(--accent); }
+
+  /* Canvas */
+  #gameCanvas {
+    display: block;
+    border-radius: 16px;
+    border: 3px solid rgba(255,255,255,0.1);
+    box-shadow: 0 0 60px rgba(233,69,96,0.3), 0 0 120px rgba(76,201,240,0.1);
+    image-rendering: pixelated;
+    background: #0d0d1a;
+  }
+
+  /* Controls hint */
+  #controls {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 1px;
+    text-align: center;
+    line-height: 1.8;
+  }
+
+  /* Overlay screens */
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10,10,30,0.88);
+    border-radius: 13px;
+    backdrop-filter: blur(4px);
+    gap: 20px;
+    z-index: 10;
+  }
+
+  #overlay.hidden { display: none; }
+
+  #overlay-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(14px, 3vw, 26px);
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  #overlay-sub {
+    font-size: clamp(13px, 1.5vw, 16px);
+    color: rgba(255,255,255,0.6);
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  #overlay-score {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(11px, 1.8vw, 18px);
+    color: var(--star);
+  }
+
+  .btn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(10px, 1.5vw, 14px);
+    padding: 14px 32px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--green), #0a7a46);
+    color: white;
+    letter-spacing: 1px;
+    box-shadow: 0 6px 0 #075c34, 0 8px 20px rgba(15,155,88,0.4);
+    transition: transform 0.08s, box-shadow 0.08s;
+    text-transform: uppercase;
+  }
+
+  .btn:hover { transform: translateY(2px); box-shadow: 0 4px 0 #075c34, 0 4px 12px rgba(15,155,88,0.3); }
+  .btn:active { transform: translateY(6px); box-shadow: 0 0 0 #075c34; }
+
+  .btn-restart {
+    background: linear-gradient(135deg, var(--accent), #c73652);
+    box-shadow: 0 6px 0 #a02840, 0 8px 20px rgba(233,69,96,0.4);
+  }
+  .btn-restart:hover { box-shadow: 0 4px 0 #a02840, 0 4px 12px rgba(233,69,96,0.3); }
+
+  /* Mobile touch buttons */
+  #touch-controls {
+    display: none;
+    gap: 80px;
+  }
+
+  .touch-btn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 22px;
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08);
+    color: white;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s;
+  }
+
+  .touch-btn:active { background: rgba(255,255,255,0.25); }
+
+  @media (max-width: 600px) or (pointer: coarse) {
+    #touch-controls { display: flex; }
+  }
+
+  /* Particle effect canvas */
+  #particleCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    border-radius: 13px;
+    pointer-events: none;
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<div id="wrapper">
+  <h1>🌟 TANGKAP OBJEK 🌟</h1>
+
+  <div id="hud">
+    <div class="hud-box">
+      <div class="hud-label">SKOR</div>
+      <div class="hud-value" id="score-val">0</div>
+    </div>
+    <div class="hud-box">
+      <div class="hud-label">LIVES</div>
+      <div class="hud-value" id="lives-val">❤️❤️❤️</div>
+    </div>
+    <div class="hud-box">
+      <div class="hud-label">LEVEL</div>
+      <div class="hud-value" id="level-val" style="color: var(--blue);">1</div>
+    </div>
+  </div>
+
+  <div style="position:relative;">
+    <canvas id="gameCanvas"></canvas>
+    <canvas id="particleCanvas"></canvas>
+
+    <div id="overlay">
+      <div id="overlay-title" style="color: var(--star);">🌟 TANGKAP OBJEK 🌟</div>
+      <div id="overlay-sub">Tangkap bintang sebelum menyentuh tanah!<br>Gunakan ← → untuk bergerak</div>
+      <button class="btn" id="startBtn" onclick="startGame()">▶ MULAI GAME</button>
+    </div>
+  </div>
+
+  <div id="controls">
+    KEYBOARD: ← → GERAK &nbsp;|&nbsp; MOBILE: TEKAN TOMBOL DI BAWAH
+  </div>
+
+  <div id="touch-controls">
+    <button class="touch-btn" id="leftBtn">◀</button>
+    <button class="touch-btn" id="rightBtn">▶</button>
+  </div>
+</div>
+
+<script>
+// ============ CANVAS SETUP ============
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const pCanvas = document.getElementById('particleCanvas');
+const pCtx = pCanvas.getContext('2d');
+
+function resizeCanvas() {
+  const maxW = Math.min(window.innerWidth - 32, 520);
+  const maxH = Math.min(window.innerHeight - 280, 480);
+  canvas.width = maxW;
+  canvas.height = maxH;
+  pCanvas.width = maxW;
+  pCanvas.height = maxH;
+}
+resizeCanvas();
+window.addEventListener('resize', () => { resizeCanvas(); });
+
+// ============ GAME STATE ============
+let score = 0;
+let lives = 3;
+let level = 1;
+let gameRunning = false;
+let gameOver = false;
+let animId;
+
+// ============ PLAYER ============
+const PLAYER_SIZE = 50;
+const player = {
+  x: canvas.width / 2,
+  y: 0,
+  speed: 5.5,
+  movingLeft: false,
+  movingRight: false,
+
+  get w() { return PLAYER_SIZE + 10; },
+  get h() { return PLAYER_SIZE; },
+
+  init() {
+    this.x = canvas.width / 2;
+    this.y = canvas.height - this.h - 12;
+  },
+
+  update() {
+    if (this.movingLeft)  this.x -= this.speed;
+    if (this.movingRight) this.x += this.speed;
+    this.x = Math.max(this.w / 2, Math.min(canvas.width - this.w / 2, this.x));
+  },
+
+  draw() {
+    const cx = this.x;
+    const cy = this.y + this.h / 2;
+
+    // Basket shadow
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(cx, canvas.height - 4, this.w / 2, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Basket body
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#c8860a';
+    ctx.fillStyle = '#e8a020';
+
+    // Main basket shape (trapezoid)
+    ctx.beginPath();
+    ctx.moveTo(cx - this.w / 2 + 5, cy - this.h / 2 + 5);
+    ctx.lineTo(cx + this.w / 2 - 5, cy - this.h / 2 + 5);
+    ctx.lineTo(cx + this.w / 2 - 12, cy + this.h / 2);
+    ctx.lineTo(cx - this.w / 2 + 12, cy + this.h / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Basket weave lines
+    ctx.strokeStyle = '#c8860a';
+    ctx.lineWidth = 1.5;
+    for (let i = 1; i < 4; i++) {
+      const yy = cy - this.h / 2 + 5 + (this.h - 5) * i / 4;
+      ctx.beginPath();
+      ctx.moveTo(cx - this.w / 2 + 5, yy);
+      ctx.lineTo(cx + this.w / 2 - 5, yy);
+      ctx.stroke();
+    }
+
+    // Basket rim
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#a06010';
+    ctx.beginPath();
+    ctx.moveTo(cx - this.w / 2, cy - this.h / 2 + 5);
+    ctx.lineTo(cx + this.w / 2, cy - this.h / 2 + 5);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+};
+
+// ============ OBJECTS (falling stars / items) ============
+const EMOJIS = ['⭐', '🌟', '💎', '🍎', '🍊', '🍋'];
+const COLORS = ['#f5a623', '#ffd700', '#4cc9f0', '#ff6b6b', '#ff9f43', '#a29bfe'];
+
+let objects = [];
+let spawnTimer = 0;
+let spawnInterval = 90; // frames
+
+function spawnObject() {
+  const size = 28 + Math.random() * 14;
+  objects.push({
+    x: size + Math.random() * (canvas.width - size * 2),
+    y: -size,
+    size: size,
+    speed: 1.8 + Math.random() * 1.2 + (level - 1) * 0.4,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    emoji: EMOJIS[Math.floor(Math.random() * EMOJIS.length)],
+    rot: 0,
+    rotSpeed: (Math.random() - 0.5) * 0.06,
+    caught: false,
+    missed: false,
+    alpha: 1
+  });
+}
+
+function updateObjects() {
+  spawnTimer++;
+  if (spawnTimer >= spawnInterval) {
+    spawnTimer = 0;
+    spawnInterval = Math.max(30, 90 - (level - 1) * 8);
+    spawnObject();
+  }
+
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const obj = objects[i];
+    obj.y += obj.speed;
+    obj.rot += obj.rotSpeed;
+
+    // Hit the ground
+    if (obj.y > canvas.height - 12 && !obj.caught) {
+      obj.missed = true;
+      loseLife();
+      objects.splice(i, 1);
+      continue;
+    }
+
+    // Check catch
+    const px = player.x, py = player.y + player.h / 2 - player.h / 2 + 5;
+    const dx = Math.abs(obj.x - px);
+    const dy = Math.abs(obj.y - py);
+    if (dx < player.w / 2 + obj.size / 2 - 8 && dy < player.h / 2 + obj.size / 2 - 8) {
+      catchObject(obj, i);
+    }
+  }
+}
+
+function drawObjects() {
+  for (const obj of objects) {
+    ctx.save();
+    ctx.translate(obj.x, obj.y);
+    ctx.rotate(obj.rot);
+    ctx.globalAlpha = obj.alpha;
+
+    // Glow
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = obj.color;
+
+    // Draw circle behind
+    ctx.beginPath();
+    ctx.arc(0, 0, obj.size / 2, 0, Math.PI * 2);
+    ctx.fillStyle = obj.color + '33';
+    ctx.fill();
+
+    // Emoji
+    ctx.font = `${obj.size}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowBlur = 10;
+    ctx.fillText(obj.emoji, 0, 0);
+
+    ctx.restore();
+  }
+}
+
+// ============ PARTICLES ============
+let particles = [];
+
+function spawnParticles(x, y, color) {
+  for (let i = 0; i < 16; i++) {
+    const angle = (Math.PI * 2 / 16) * i + Math.random() * 0.3;
+    const speed = 2 + Math.random() * 4;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: 4 + Math.random() * 6,
+      color,
+      life: 1,
+      decay: 0.04 + Math.random() * 0.03
+    });
+  }
+}
+
+function updateParticles() {
+  pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.12;
+    p.life -= p.decay;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+
+    pCtx.save();
+    pCtx.globalAlpha = p.life;
+    pCtx.fillStyle = p.color;
+    pCtx.shadowBlur = 8;
+    pCtx.shadowColor = p.color;
+    pCtx.beginPath();
+    pCtx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    pCtx.fill();
+    pCtx.restore();
+  }
+}
+
+// ============ SCORE POPUPS ============
+let popups = [];
+
+function addPopup(x, y, text, color) {
+  popups.push({ x, y, text, color, life: 1, vy: -2 });
+}
+
+function updatePopups() {
+  for (let i = popups.length - 1; i >= 0; i--) {
+    const p = popups[i];
+    p.y += p.vy;
+    p.life -= 0.025;
+    if (p.life <= 0) { popups.splice(i, 1); }
+  }
+}
+
+function drawPopups() {
+  for (const p of popups) {
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.font = `bold ${16 + (1 - p.life) * 8}px 'Press Start 2P', monospace`;
+    ctx.fillStyle = p.color;
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = p.color;
+    ctx.fillText(p.text, p.x, p.y);
+    ctx.restore();
+  }
+}
+
+// ============ GROUND & BG ============
+function drawBackground() {
+  // Gradient sky
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  grad.addColorStop(0, '#0d0d1a');
+  grad.addColorStop(1, '#16213e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Twinkling stars
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  const t = Date.now() / 1000;
+  const starPositions = [[50,30],[150,80],[250,20],[370,60],[460,40],[100,120],[300,100],[420,130],[80,200],[200,180],[340,220],[480,190]];
+  for (let i = 0; i < starPositions.length; i++) {
+    const [sx, sy] = starPositions[i];
+    const brightness = 0.3 + 0.7 * Math.abs(Math.sin(t * 1.5 + i));
+    ctx.globalAlpha = brightness;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Ground
+  const groundH = 12;
+  const groundY = canvas.height - groundH;
+  const groundGrad = ctx.createLinearGradient(0, groundY, 0, canvas.height);
+  groundGrad.addColorStop(0, '#2ecc71');
+  groundGrad.addColorStop(1, '#27ae60');
+  ctx.fillStyle = groundGrad;
+  ctx.beginPath();
+  ctx.roundRect(0, groundY, canvas.width, groundH, [4, 4, 0, 0]);
+  ctx.fill();
+
+  // Ground glow
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = '#2ecc71';
+  ctx.fillStyle = 'rgba(46,204,113,0.3)';
+  ctx.fillRect(0, groundY - 3, canvas.width, 3);
+  ctx.shadowBlur = 0;
+}
+
+// ============ GAME ACTIONS ============
+function catchObject(obj, idx) {
+  const pts = Math.ceil(10 + level * 5);
+  score += pts;
+  document.getElementById('score-val').textContent = score;
+
+  // Level up every 100 points
+  const newLevel = Math.floor(score / 100) + 1;
+  if (newLevel > level) {
+    level = newLevel;
+    document.getElementById('level-val').textContent = level;
+    addPopup(canvas.width / 2, canvas.height / 2, `LEVEL ${level}! 🔥`, '#4cc9f0');
+  }
+
+  spawnParticles(obj.x, obj.y, obj.color);
+  addPopup(obj.x, obj.y - 20, `+${pts}`, '#f5a623');
+  objects.splice(idx, 1);
+}
+
+function loseLife() {
+  lives--;
+  const hearts = '❤️'.repeat(Math.max(0, lives));
+  document.getElementById('lives-val').textContent = hearts || '💀';
+
+  // Flash red
+  canvas.style.boxShadow = '0 0 60px rgba(233,69,96,0.9), 0 0 120px rgba(233,69,96,0.5)';
+  setTimeout(() => {
+    canvas.style.boxShadow = '0 0 60px rgba(233,69,96,0.3), 0 0 120px rgba(76,201,240,0.1)';
+  }, 300);
+
+  if (lives <= 0) triggerGameOver();
+}
+
+function triggerGameOver() {
+  gameRunning = false;
+  gameOver = true;
+  cancelAnimationFrame(animId);
+
+  const overlay = document.getElementById('overlay');
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = `
+    <div id="overlay-title" style="color: var(--accent);">💀 GAME OVER 💀</div>
+    <div id="overlay-sub">Objek menyentuh tanah!</div>
+    <div id="overlay-score">SKOR AKHIR: ${score}</div>
+    <button class="btn btn-restart" onclick="startGame()">🔄 MAIN LAGI</button>
+  `;
+}
+
+// ============ KEYBOARD INPUT ============
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === 'ArrowLeft')  { player.movingLeft = true; e.preventDefault(); }
+  if (e.key === 'ArrowRight') { player.movingRight = true; e.preventDefault(); }
+});
+document.addEventListener('keyup', e => {
+  keys[e.key] = false;
+  if (e.key === 'ArrowLeft')  player.movingLeft = false;
+  if (e.key === 'ArrowRight') player.movingRight = false;
+});
+
+// ============ TOUCH / MOBILE INPUT ============
+const leftBtn  = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+
+leftBtn.addEventListener('touchstart',  e => { player.movingLeft = true;  e.preventDefault(); }, {passive:false});
+leftBtn.addEventListener('touchend',    e => { player.movingLeft = false; e.preventDefault(); }, {passive:false});
+rightBtn.addEventListener('touchstart', e => { player.movingRight = true;  e.preventDefault(); }, {passive:false});
+rightBtn.addEventListener('touchend',   e => { player.movingRight = false; e.preventDefault(); }, {passive:false});
+
+leftBtn.addEventListener('mousedown',  () => player.movingLeft = true);
+leftBtn.addEventListener('mouseup',    () => player.movingLeft = false);
+rightBtn.addEventListener('mousedown', () => player.movingRight = true);
+rightBtn.addEventListener('mouseup',   () => player.movingRight = false);
+
+// ============ GAME LOOP ============
+function gameLoop() {
+  if (!gameRunning) return;
+
+  // Clear
+  drawBackground();
+
+  // Update
+  player.update();
+  updateObjects();
+  updatePopups();
+  updateParticles();
+
+  // Draw
+  drawObjects();
+  player.draw();
+  drawPopups();
+
+  animId = requestAnimationFrame(gameLoop);
+}
+
+// ============ START / RESET ============
+function startGame() {
+  score = 0;
+  lives = 3;
+  level = 1;
+  objects = [];
+  particles = [];
+  popups = [];
+  spawnTimer = 0;
+  spawnInterval = 90;
+  gameOver = false;
+  gameRunning = true;
+
+  document.getElementById('score-val').textContent = '0';
+  document.getElementById('lives-val').textContent = '❤️❤️❤️';
+  document.getElementById('level-val').textContent = '1';
+
+  resizeCanvas();
+  player.init();
+
+  const overlay = document.getElementById('overlay');
+  overlay.classList.add('hidden');
+
+  cancelAnimationFrame(animId);
+  gameLoop();
+}
+
+// Initial draw
+drawBackground();
+player.init();
+player.draw();
+</script>
+</body>
+</html>

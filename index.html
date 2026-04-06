@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tugas Informatika Kelas 9 — Game Tangkap Objek</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Baloo+2:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #07071a;
+  --surface: #0f0f2e;
+  --card: #13132e;
+  --border: rgba(255,255,255,0.07);
+  --yellow: #f5c842;
+  --pink: #ff4d94;
+  --cyan: #00e5ff;
+  --green: #00ff9d;
+  --purple: #9b5de5;
+  --white: #f0f0f8;
+  --text-dim: rgba(240,240,248,0.5);
+  --glow-y: 0 0 30px rgba(245,200,66,0.4);
+  --glow-p: 0 0 30px rgba(255,77,148,0.4);
+  --glow-c: 0 0 30px rgba(0,229,255,0.4);
+  --glow-g: 0 0 30px rgba(0,255,157,0.4);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--white);
+  font-family: 'Baloo 2', cursive;
+  font-size: 16px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ===== SCANLINE OVERLAY ===== */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.06) 2px,
+    rgba(0,0,0,0.06) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ===== NOISE TEXTURE ===== */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.5;
+}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--purple); border-radius: 3px; }
+
+/* ===== FLOATING PARTICLES ===== */
+.particle {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 50%;
+  animation: floatUp linear infinite;
+  opacity: 0;
+  z-index: 0;
+}
+@keyframes floatUp {
+  0%   { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.3; }
+  100% { transform: translateY(-100px) rotate(720deg); opacity: 0; }
+}
+
+/* ===== HEADER / HERO ===== */
+header {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+  overflow: hidden;
+}
+
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(155,93,229,0.18) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 20% 80%, rgba(0,229,255,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 80% 20%, rgba(255,77,148,0.12) 0%, transparent 60%);
+  z-index: 0;
+}
+
+/* Grid lines */
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  perspective: 500px;
+  z-index: 0;
+}
+
+.hero-content { position: relative; z-index: 1; max-width: 800px; }
+
+.subject-badge {
+  display: inline-block;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: var(--cyan);
+  border: 1.5px solid var(--cyan);
+  padding: 8px 20px;
+  border-radius: 100px;
+  letter-spacing: 2px;
+  margin-bottom: 28px;
+  box-shadow: var(--glow-c);
+  animation: pulseBorder 2s ease-in-out infinite;
+}
+
+@keyframes pulseBorder {
+  0%, 100% { box-shadow: 0 0 10px rgba(0,229,255,0.3); }
+  50%       { box-shadow: 0 0 30px rgba(0,229,255,0.7); }
+}
+
+.hero-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(22px, 5vw, 52px);
+  line-height: 1.4;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, var(--yellow) 0%, var(--pink) 50%, var(--cyan) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 30px rgba(245,200,66,0.5));
+  animation: titleGlow 3s ease-in-out infinite;
+}
+
+@keyframes titleGlow {
+  0%, 100% { filter: drop-shadow(0 0 20px rgba(245,200,66,0.4)); }
+  50%       { filter: drop-shadow(0 0 50px rgba(255,77,148,0.6)); }
+}
+
+.hero-sub {
+  font-size: clamp(16px, 2.5vw, 22px);
+  color: var(--text-dim);
+  margin-bottom: 40px;
+  font-weight: 600;
+}
+
+.hero-sub span { color: var(--yellow); font-weight: 800; }
+
+.hero-cta {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 60px;
+}
+
+.btn-primary {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  padding: 16px 28px;
+  background: linear-gradient(135deg, var(--yellow), #e8a020);
+  color: #1a0a00;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  letter-spacing: 1px;
+  box-shadow: 0 6px 0 #a06010, var(--glow-y);
+  transition: transform .1s, box-shadow .1s;
+}
+.btn-primary:hover { transform: translateY(3px); box-shadow: 0 3px 0 #a06010, 0 0 20px rgba(245,200,66,0.4); }
+.btn-primary:active { transform: translateY(6px); box-shadow: none; }
+
+.btn-secondary {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  padding: 16px 28px;
+  background: transparent;
+  color: var(--cyan);
+  border: 2px solid var(--cyan);
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  letter-spacing: 1px;
+  box-shadow: var(--glow-c);
+  transition: all .2s;
+}
+.btn-secondary:hover { background: rgba(0,229,255,0.1); box-shadow: 0 0 40px rgba(0,229,255,0.5); }
+
+/* Scroll indicator */
+.scroll-hint {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  animation: bounce 1.5s ease-in-out infinite;
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(8px); }
+}
+
+/* ===== SECTION BASE ===== */
+section {
+  position: relative;
+  padding: 80px 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.section-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--pink);
+  margin-bottom: 12px;
+  display: block;
+}
+
+.section-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(16px, 3vw, 28px);
+  line-height: 1.5;
+  margin-bottom: 40px;
+}
+
+/* ===== DIVIDER ===== */
+.divider {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  margin: 0 auto;
+}
+
+/* ===== INFO CARDS ===== */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 48px;
+}
+
+.info-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  position: relative;
+  overflow: hidden;
+  transition: transform .2s, border-color .2s;
+}
+
+.info-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 16px 16px 0 0;
+}
+
+.info-card.yellow::before { background: linear-gradient(90deg, var(--yellow), #e8a020); }
+.info-card.pink::before   { background: linear-gradient(90deg, var(--pink), #cc3377); }
+.info-card.cyan::before   { background: linear-gradient(90deg, var(--cyan), #0099bb); }
+.info-card.green::before  { background: linear-gradient(90deg, var(--green), #00bb77); }
+.info-card.purple::before { background: linear-gradient(90deg, var(--purple), #7733bb); }
+
+.info-card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.15); }
+
+.card-icon { font-size: 36px; margin-bottom: 14px; display: block; }
+.card-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+.card-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--white);
+  line-height: 1.4;
+}
+
+/* ===== OBJECTIVES ===== */
+.obj-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.obj-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 24px;
+  transition: transform .2s, border-color .2s;
+}
+
+.obj-item:hover { transform: translateX(6px); border-color: rgba(155,93,229,0.4); }
+
+.obj-num {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 20px;
+  font-weight: 900;
+  min-width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.obj-num.y { background: rgba(245,200,66,0.12); color: var(--yellow); border: 1px solid rgba(245,200,66,0.3); }
+.obj-num.p { background: rgba(255,77,148,0.12); color: var(--pink);   border: 1px solid rgba(255,77,148,0.3); }
+.obj-num.c { background: rgba(0,229,255,0.12);  color: var(--cyan);   border: 1px solid rgba(0,229,255,0.3); }
+
+.obj-text { font-size: 17px; font-weight: 600; padding-top: 10px; }
+.obj-text strong { color: var(--yellow); }
+
+/* ===== REQUIREMENTS ===== */
+.req-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.req-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  transition: all .2s;
+}
+
+.req-card:hover { border-color: rgba(0,255,157,0.3); box-shadow: 0 0 30px rgba(0,255,157,0.08); }
+
+.req-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.req-icon { font-size: 28px; }
+.req-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: var(--green);
+  line-height: 1.6;
+}
+
+.req-items { display: flex; flex-direction: column; gap: 10px; }
+.req-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(240,240,248,0.8);
+}
+.req-bullet {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+  margin-top: 7px;
+  box-shadow: 0 0 8px rgba(0,255,157,0.6);
+}
+.req-item em { color: var(--cyan); font-style: normal; font-weight: 700; }
+
+/* ===== GAME SECTION ===== */
+.game-wrapper {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 40px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.game-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: rgba(0,0,0,0.3);
+  border-bottom: 1px solid var(--border);
+}
+
+.dot { width: 12px; height: 12px; border-radius: 50%; }
+.dot.r { background: #ff5f57; }
+.dot.y { background: #febc2e; }
+.dot.g { background: #28c840; }
+
+.game-topbar-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-left: 8px;
+  letter-spacing: 1px;
+}
+
+.game-frame {
+  width: 100%;
+  height: 700px;
+  border: none;
+  display: block;
+  background: #07071a;
+}
+
+/* ===== DEADLINE BANNER ===== */
+.deadline-banner {
+  background: linear-gradient(135deg, rgba(255,77,148,0.15), rgba(245,200,66,0.1));
+  border: 1px solid rgba(255,77,148,0.3);
+  border-radius: 16px;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 60px;
+}
+
+.deadline-icon { font-size: 48px; flex-shrink: 0; animation: shake 2s ease-in-out infinite; }
+@keyframes shake {
+  0%, 100% { transform: rotate(0deg); }
+  25%       { transform: rotate(-8deg); }
+  75%       { transform: rotate(8deg); }
+}
+
+.deadline-content { flex: 1; min-width: 200px; }
+.deadline-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: var(--pink);
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+}
+.deadline-date {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(14px, 2.5vw, 22px);
+  color: var(--yellow);
+  text-shadow: var(--glow-y);
+}
+.deadline-sub { font-size: 14px; color: var(--text-dim); margin-top: 4px; }
+
+.countdown {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.count-box {
+  text-align: center;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 10px 14px;
+  min-width: 56px;
+}
+.count-num {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 20px;
+  color: var(--yellow);
+  display: block;
+}
+.count-label { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+/* ===== FORMAT SECTION ===== */
+.format-box {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px 28px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  color: var(--green);
+  line-height: 2;
+  margin-top: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.format-box::before {
+  content: '// FORMAT FILE';
+  display: block;
+  color: var(--text-dim);
+  font-size: 8px;
+  margin-bottom: 12px;
+  letter-spacing: 2px;
+}
+
+.format-box span { color: var(--cyan); }
+.format-box em { color: var(--yellow); font-style: normal; }
+
+/* ===== FOOTER ===== */
+footer {
+  border-top: 1px solid var(--border);
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.footer-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+.footer-sub { font-size: 14px; color: rgba(240,240,248,0.3); }
+
+/* ===== ANIMATIONS ON SCROLL ===== */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity .6s ease, transform .6s ease;
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 640px) {
+  .game-frame { height: 480px; }
+  .deadline-banner { flex-direction: column; text-align: center; }
+  .countdown { justify-content: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- Floating particles -->
+<script>
+  const colors = ['#f5c842','#ff4d94','#00e5ff','#00ff9d','#9b5de5'];
+  for (let i = 0; i < 20; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const size = 3 + Math.random() * 6;
+    p.style.cssText = `
+      width:${size}px; height:${size}px;
+      left:${Math.random()*100}vw;
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      animation-duration:${8+Math.random()*14}s;
+      animation-delay:${Math.random()*10}s;
+      box-shadow: 0 0 ${size*2}px currentColor;
+    `;
+    document.body.appendChild(p);
+  }
+</script>
+
+<!-- ===== HERO ===== -->
+<header>
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div class="subject-badge">📚 INFORMATIKA · KELAS 9</div>
+    <h1 class="hero-title">GAME<br>TANGKAP OBJEK</h1>
+    <p class="hero-sub">Tugas Pemrograman Scratch &nbsp;·&nbsp; <span>6 – 16 April 2026</span></p>
+    <div class="hero-cta">
+      <a href="#game" class="btn-primary">🎮 MAIN SEKARANG</a>
+      <a href="#tugas" class="btn-secondary">📋 LIHAT TUGAS</a>
+    </div>
+    <div class="scroll-hint">▼ &nbsp; SCROLL KE BAWAH &nbsp; ▼</div>
+  </div>
+</header>
+
+<div class="divider"></div>
+
+<!-- ===== INFO SECTION ===== -->
+<section id="tugas">
+  <span class="section-label reveal">// INFORMASI TUGAS</span>
+  <h2 class="section-title reveal">Detail Proyek 📋</h2>
+
+  <div class="info-grid">
+    <div class="info-card yellow reveal">
+      <span class="card-icon">📚</span>
+      <div class="card-title">MATA PELAJARAN</div>
+      <div class="card-value">Informatika</div>
+    </div>
+    <div class="info-card cyan reveal">
+      <span class="card-icon">🎓</span>
+      <div class="card-title">KELAS</div>
+      <div class="card-value">Kelas 9</div>
+    </div>
+    <div class="info-card pink reveal">
+      <span class="card-icon">🛠️</span>
+      <div class="card-title">PLATFORM</div>
+      <div class="card-value">Scratch (.sb3)</div>
+    </div>
+    <div class="info-card green reveal">
+      <span class="card-icon">📅</span>
+      <div class="card-title">DEADLINE</div>
+      <div class="card-value">16 April 2026</div>
+    </div>
+    <div class="info-card purple reveal">
+      <span class="card-icon">📱</span>
+      <div class="card-title">PENGUMPULAN</div>
+      <div class="card-value">WhatsApp ke Guru</div>
+    </div>
+  </div>
+
+  <!-- Tujuan Pembelajaran -->
+  <span class="section-label reveal" style="margin-top:60px; display:block;">// TUJUAN PEMBELAJARAN</span>
+  <h2 class="section-title reveal">Setelah tugas ini, kamu mampu:</h2>
+
+  <div class="obj-list">
+    <div class="obj-item reveal">
+      <div class="obj-num y">01</div>
+      <div class="obj-text">Membuat <strong>proyek interaktif</strong> menggunakan Scratch dari nol</div>
+    </div>
+    <div class="obj-item reveal">
+      <div class="obj-num p">02</div>
+      <div class="obj-text">Menggunakan konsep <strong>event, motion, control, dan variable</strong> dengan benar</div>
+    </div>
+    <div class="obj-item reveal">
+      <div class="obj-num c">03</div>
+      <div class="obj-text">Menyusun <strong>algoritma sederhana</strong> dalam bentuk program visual</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ===== REQUIREMENTS ===== -->
+<section id="ketentuan">
+  <span class="section-label reveal">// KETENTUAN PROYEK</span>
+  <h2 class="section-title reveal">Yang Harus Ada di Game ✅</h2>
+
+  <div class="req-grid">
+    <div class="req-card reveal">
+      <div class="req-header">
+        <span class="req-icon">🏃</span>
+        <div class="req-title">SPRITE UTAMA<br>(PEMAIN)</div>
+      </div>
+      <div class="req-items">
+        <div class="req-item"><div class="req-bullet"></div><span>Bisa bergerak <em>kiri & kanan</em></span></div>
+        <div class="req-item"><div class="req-bullet"></div><span>Pakai tombol <em>keyboard</em></span></div>
+        <div class="req-item"><div class="req-bullet"></div><span>Gunakan blok <em>Event + Motion</em></span></div>
+      </div>
+    </div>
+
+    <div class="req-card reveal">
+      <div class="req-header">
+        <span class="req-icon">⭐</span>
+        <div class="req-title">OBJEK JATUH</div>
+      </div>
+      <div class="req-items">
+        <div class="req-item"><div class="req-bullet"></div><span>Muncul dari <em>atas layar acak</em></span></div>
+        <div class="req-item"><div class="req-bullet"></div><span>Bergerak ke <em>bawah terus</em></span></div>
+        <div class="req-item"><div class="req-bullet"></div><span>Sentuh pemain → <em>skor tambah</em></span></div>
+      </div>
+    </div>
+
+    <div class="req-card reveal">
+      <div class="req-header">
+        <span class="req-icon">🔢</span>
+        <div class="req-title">SKOR</div>
+      </div>
+      <div class="req-items">
+        <div class="req-item"><div class="req-bullet"></div><span>Gunakan <em>Variable</em> Scratch</span></div>
+        <div class="req-item"><div class="req-bullet"></div><span>Tampil di <em>layar game</em></span></div>
+        <div class="req-item"><div class="req-bullet"></div><span>Bertambah otomatis</span></div>
+      </div>
+    </div>
+
+    <div class="req-card reveal">
+      <div class="req-header">
+        <span class="req-icon">💀</span>
+        <div class="req-title">GAME OVER</div>
+      </div>
+      <div class="req-items">
+        <div class="req-item"><div class="req-bullet"></div><span>Objek sentuh <em>tanah → selesai</em></span></div>
+        <div class="req-item"><div class="req-bullet"></div><span>Tampil pesan <em>"Game Over"</em></span></div>
+        <div class="req-item"><div class="req-bullet"></div><span>Game berhenti total</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Format Pengumpulan -->
+  <div class="reveal" style="margin-top: 48px;">
+    <span class="section-label">// FORMAT PENGUMPULAN</span>
+    <div class="format-box">
+      <span>Nama File:</span> <em>Game_Scratch_</em><span>NamaKelas</span>_<span>NamaSiswa</span>.sb3<br>
+      <span>Atau:</span> <em>Link Scratch Online</em> (scratch.mit.edu)<br>
+      <span>Kirim via:</span> <em>WhatsApp</em> ke guru<br>
+      <span>Deadline:</span> <em>16 April 2026</em> ⏰
+    </div>
+  </div>
+
+  <!-- Deadline Banner -->
+  <div class="deadline-banner reveal">
+    <div class="deadline-icon">⏰</div>
+    <div class="deadline-content">
+      <div class="deadline-label">BATAS WAKTU PENGUMPULAN</div>
+      <div class="deadline-date">16 APRIL 2026</div>
+      <div class="deadline-sub">Kumpulkan via WhatsApp ke guru sebelum deadline!</div>
+    </div>
+    <div class="countdown" id="countdown">
+      <div class="count-box">
+        <span class="count-num" id="cd-days">--</span>
+        <div class="count-label">HARI</div>
+      </div>
+      <div class="count-box">
+        <span class="count-num" id="cd-hours">--</span>
+        <div class="count-label">JAM</div>
+      </div>
+      <div class="count-box">
+        <span class="count-num" id="cd-mins">--</span>
+        <div class="count-label">MENIT</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ===== GAME SECTION ===== -->
+<section id="game" style="padding-bottom: 40px;">
+  <span class="section-label reveal">// DEMO GAME</span>
+  <h2 class="section-title reveal">Coba Gamenya Dulu! 🎮</h2>
+  <p class="reveal" style="color: var(--text-dim); font-size:16px; margin-bottom: 32px; font-weight:600;">
+    Game web ini mendemonstrasikan konsep yang sama dengan yang harus kamu buat di Scratch.<br>
+    Pakai tombol ← → di keyboard, atau tombol di layar jika pakai HP.
+  </p>
+
+  <div class="game-wrapper reveal">
+    <div class="game-topbar">
+      <div class="dot r"></div>
+      <div class="dot y"></div>
+      <div class="dot g"></div>
+      <div class="game-topbar-title">🎮 TANGKAP OBJEK — DEMO</div>
+    </div>
+    <iframe class="game-frame" src="game.html" title="Game Tangkap Objek" allowfullscreen></iframe>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <div class="footer-title">TUGAS INFORMATIKA KELAS 9 · 2026</div>
+  <div class="footer-sub">Dilarang menyalin karya teman. Boleh referensi, tapi dimodifikasi sendiri! 🔥</div>
+</footer>
+
+<script>
+// ===== COUNTDOWN =====
+function updateCountdown() {
+  const deadline = new Date('2026-04-16T23:59:59');
+  const now = new Date();
+  const diff = deadline - now;
+
+  if (diff <= 0) {
+    document.getElementById('cd-days').textContent = '00';
+    document.getElementById('cd-hours').textContent = '00';
+    document.getElementById('cd-mins').textContent = '00';
+    return;
+  }
+
+  const days  = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const mins  = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+  document.getElementById('cd-days').textContent  = String(days).padStart(2,'0');
+  document.getElementById('cd-hours').textContent = String(hours).padStart(2,'0');
+  document.getElementById('cd-mins').textContent  = String(mins).padStart(2,'0');
+}
+updateCountdown();
+setInterval(updateCountdown, 10000);
+
+// ===== SCROLL REVEAL =====
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('visible'); }
+  });
+}, { threshold: 0.12 });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
